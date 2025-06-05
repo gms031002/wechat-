@@ -11,6 +11,14 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
+// 정적 파일 경로: /client 폴더 기준
+app.use(express.static(path.join(__dirname, '../client')));
+
+// 루트 경로로 접속 시 index.html 반환
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/index.html'));
+});
+
 // 닉네임 ↔ 소켓ID 매핑
 const socketIdToNickname = new Map();
 const nicknameToSocketId = new Map();
@@ -63,9 +71,6 @@ function saveMessageToLog({ nickname, message, timestamp }) {
     console.error('채팅 로그 저장 실패:', e);
   }
 }
-
-// 정적 파일 경로: /client 폴더 기준
-app.use(express.static(path.join(__dirname, '../client')));
 
 io.on('connection', (socket) => {
   // 닉네임 설정
