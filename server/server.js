@@ -3,33 +3,33 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const fs = require('fs');
-const logPath = path.join(__dirname, 'chat-log.json');
 
-// ✅ Firebase Admin SDK 추가
+// ✅ Firebase Admin SDK 설정
 const admin = require('firebase-admin');
-const firebaseKey = require('./serverfirebase-key.json'); // 인증 키 파일명 확인
-
+const firebaseKey = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
 admin.initializeApp({
   credential: admin.credential.cert(firebaseKey),
 });
 const db = admin.firestore();
 const chatCollection = db.collection('chatMessages');
 
+const logPath = path.join(__dirname, 'chat-log.json');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
 const PORT = process.env.PORT || 3000;
 
+// ✅ 정적 파일 경로
 app.use(express.static(path.join(__dirname, '../client')));
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
+// 닉네임 관리
 const socketIdToNickname = new Map();
 const nicknameToSocketId = new Map();
 
+// 타임스탬프 생성
 function getTimestamp() {
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -48,6 +48,7 @@ function getTimestamp() {
   );
 }
 
+// 닉네임 유효성 체크
 function isValidNickname(nickname) {
   return (
     typeof nickname === 'string' &&
@@ -56,6 +57,7 @@ function isValidNickname(nickname) {
   );
 }
 
+// 로컬 JSON 파일로 로그 저장
 function saveMessageToLog({ nickname, message, timestamp }) {
   let logArr = [];
   try {
@@ -75,6 +77,7 @@ function saveMessageToLog({ nickname, message, timestamp }) {
   }
 }
 
+// 소켓 연결
 io.on('connection', (socket) => {
   socket.on('set_nickname', (nickname) => {
     if (!isValidNickname(nickname)) {
@@ -107,7 +110,7 @@ io.on('connection', (socket) => {
     io.emit('chat_message', chatData);
     saveMessageToLog(chatData);
 
-    // ✅ Firebase Firestore 저장
+    // ✅ Firebase 저장
     chatCollection.add(chatData).catch((err) => {
       console.error('Firebase 저장 실패:', err);
     });
