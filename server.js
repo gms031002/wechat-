@@ -2,6 +2,8 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const fs = require('fs');
+const logPath = path.join(__dirname, 'chat-log.json');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,10 +15,7 @@ const PORT = process.env.PORT || 3000;
 const socketIdToNickname = new Map();
 const nicknameToSocketId = new Map();
 
-// 정적 파일 제공 (client 폴더 기준)
-app.use(express.static(path.join(__dirname, './')));
-
-// 타임스탬프 생성 함수 (YYYY-MM-DD HH:mm)
+// 유틸: 타임스탬프 (YYYY-MM-DD HH:mm:ss)
 function getTimestamp() {
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -29,11 +28,13 @@ function getTimestamp() {
     ' ' +
     pad(now.getHours()) +
     ':' +
-    pad(now.getMinutes())
+    pad(now.getMinutes()) +
+    ':' +
+    pad(now.getSeconds())
   );
 }
 
-// 닉네임 유효성 및 중복 체크 함수
+// 유틸: 닉네임 유효성 및 중복 체크
 function isValidNickname(nickname) {
   return (
     typeof nickname === 'string' &&
@@ -42,27 +43,47 @@ function isValidNickname(nickname) {
   );
 }
 
-// 소켓 연결 처리
+// 채팅 메시지 로그 저장 함수
+function saveMessageToLog({ nickname, message, timestamp }) {
+  let logArr = [];
+  try {
+    if (fs.existsSync(logPath)) {
+      const data = fs.readFileSync(logPath, 'utf8');
+      logArr = JSON.parse(data);
+      if (!Array.isArray(logArr)) logArr = [];
+    }
+  } catch (e) {
+    logArr = [];
+  }
+  logArr.push({ nickname, message, timestamp });
+  try {
+    fs.writeFileSync(logPath, JSON.stringify(logArr, null, 2), 'utf8');
+  } catch (e) {
+    // 파일 저장 실패 시 서버 콘솔에만 에러 출력
+    console.error('채팅 로그 저장 실패:', e);
+  }
+}
+
+// 정적 파일 경로: /client 폴더 기준
+app.use(express.static(path.join(__dirname, '../client')));
+
 io.on('connection', (socket) => {
-  // 닉네임 설정 요청 수신
+  // 닉네임 설정
   socket.on('set_nickname', (nickname) => {
     if (!isValidNickname(nickname)) {
       socket.emit('nickname_status', {
         success: false,
-        error: 'DUPLICATE_OR_INVALID',
         message: '이미 존재하거나 올바르지 않은 닉네임입니다.',
+        error: 'DUPLICATE_OR_INVALID',
       });
       return;
     }
-
-    // 닉네임 등록
     socketIdToNickname.set(socket.id, nickname);
     nicknameToSocketId.set(nickname, socket.id);
-
     socket.emit('nickname_status', {
       success: true,
-      nickname,
       message: '닉네임 등록 성공',
+      nickname,
     });
   });
 
@@ -77,10 +98,14 @@ io.on('connection', (socket) => {
       timestamp: getTimestamp(),
     };
 
+    // 모든 클라이언트에 메시지 전송
     io.emit('chat_message', chatData);
+
+    // 메시지 로그 파일에 저장
+    saveMessageToLog(chatData);
   });
 
-  // 연결 종료 시 닉네임 정리
+  // 연결 해제 시 닉네임 정리
   socket.on('disconnect', () => {
     const nickname = socketIdToNickname.get(socket.id);
     if (nickname) {
@@ -90,7 +115,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// 서버 시작
 server.listen(PORT, () => {
-  console.log(`✅ 서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
+  console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
 });
