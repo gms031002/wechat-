@@ -4,15 +4,17 @@ const path = require('path');
 const { Server } = require('socket.io');
 const fs = require('fs');
 
-// ✅ Firebase Admin SDK 설정
+// ✅ Firebase Admin SDK 설정 (줄바꿈 처리 포함)
 const admin = require('firebase-admin');
 const firebaseKey = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
+firebaseKey.private_key = firebaseKey.private_key.replace(/\\n/g, '\n');
 admin.initializeApp({
   credential: admin.credential.cert(firebaseKey),
 });
 const db = admin.firestore();
 const chatCollection = db.collection('chatMessages');
 
+// 이하 동일
 const logPath = path.join(__dirname, 'chat-log.json');
 const app = express();
 const server = http.createServer(app);
