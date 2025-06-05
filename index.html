@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 채팅</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="nickname-container" class="centered">
+    <form id="nickname-form">
+      <label for="nickname-input">닉네임을 입력하세요</label>
+      <input type="text" id="nickname-input" maxlength="16" autocomplete="off" required>
+      <button type="submit">입장</button>
+      <div id="nickname-error" class="error-message"></div>
+    </form>
+  </div>
+  <div id="chat-container" class="hidden">
+    <div id="chat-header">공용 채팅방</div>
+    <div id="chat-messages"></div>
+    <form id="chat-form">
+      <input type="text" id="chat-input" maxlength="200" autocomplete="off" placeholder="메시지를 입력하세요" required>
+      <button type="submit">전송</button>
+    </form>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
