@@ -69,3 +69,11 @@ function escapeHtml(text) {
     })[m];
   });
 }
+
+// ✅ 서버에서 이전 메시지 받아서 화면에 출력
+socket.on('old_messages', (messages) => {
+  messages.forEach(({ nickname, message, timestamp }) => {
+    const isSelf = nickname === myNickname;
+    appendMessage(nickname, `[${timestamp}] ${message}`, isSelf);
+  });
+});

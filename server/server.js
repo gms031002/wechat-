@@ -14,7 +14,7 @@ admin.initializeApp({
 const db = admin.firestore();
 const chatCollection = db.collection('chatMessages');
 
-// 이하 동일
+// 파일 경로 설정
 const logPath = path.join(__dirname, 'chat-log.json');
 const app = express();
 const server = http.createServer(app);
@@ -79,8 +79,22 @@ function saveMessageToLog({ nickname, message, timestamp }) {
   }
 }
 
-// 소켓 연결
+// ✅ 소켓 연결 처리
 io.on('connection', (socket) => {
+  // ✅ 기존 채팅 불러오기
+  (async () => {
+    try {
+      const snapshot = await chatCollection.orderBy('timestamp').get();
+      const oldMessages = [];
+      snapshot.forEach((doc) => {
+        oldMessages.push(doc.data());
+      });
+      socket.emit('old_messages', oldMessages);
+    } catch (err) {
+      console.error('기존 채팅 불러오기 실패:', err);
+    }
+  })();
+
   socket.on('set_nickname', (nickname) => {
     if (!isValidNickname(nickname)) {
       socket.emit('nickname_status', {
@@ -127,6 +141,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// 서버 실행
 server.listen(PORT, () => {
   console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
 });
