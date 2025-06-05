@@ -5,25 +5,31 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const logPath = path.join(__dirname, 'chat-log.json');
 
+// ✅ Firebase Admin SDK 추가
+const admin = require('firebase-admin');
+const firebaseKey = require('./serverfirebase-key.json'); // 인증 키 파일명 확인
+
+admin.initializeApp({
+  credential: admin.credential.cert(firebaseKey),
+});
+const db = admin.firestore();
+const chatCollection = db.collection('chatMessages');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-// 정적 파일 경로: /client 폴더 기준
 app.use(express.static(path.join(__dirname, '../client')));
 
-// 루트 경로로 접속 시 index.html 반환
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
-// 닉네임 ↔ 소켓ID 매핑
 const socketIdToNickname = new Map();
 const nicknameToSocketId = new Map();
 
-// 유틸: 타임스탬프 (YYYY-MM-DD HH:mm:ss)
 function getTimestamp() {
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -42,7 +48,6 @@ function getTimestamp() {
   );
 }
 
-// 유틸: 닉네임 유효성 및 중복 체크
 function isValidNickname(nickname) {
   return (
     typeof nickname === 'string' &&
@@ -51,7 +56,6 @@ function isValidNickname(nickname) {
   );
 }
 
-// 채팅 메시지 로그 저장 함수
 function saveMessageToLog({ nickname, message, timestamp }) {
   let logArr = [];
   try {
@@ -67,13 +71,11 @@ function saveMessageToLog({ nickname, message, timestamp }) {
   try {
     fs.writeFileSync(logPath, JSON.stringify(logArr, null, 2), 'utf8');
   } catch (e) {
-    // 파일 저장 실패 시 서버 콘솔에만 에러 출력
     console.error('채팅 로그 저장 실패:', e);
   }
 }
 
 io.on('connection', (socket) => {
-  // 닉네임 설정
   socket.on('set_nickname', (nickname) => {
     if (!isValidNickname(nickname)) {
       socket.emit('nickname_status', {
@@ -92,7 +94,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 채팅 메시지 수신
   socket.on('chat_message', (msg) => {
     const nickname = socketIdToNickname.get(socket.id);
     if (!nickname || typeof msg !== 'string' || !msg.trim()) return;
@@ -103,14 +104,15 @@ io.on('connection', (socket) => {
       timestamp: getTimestamp(),
     };
 
-    // 모든 클라이언트에 메시지 전송
     io.emit('chat_message', chatData);
-
-    // 메시지 로그 파일에 저장
     saveMessageToLog(chatData);
+
+    // ✅ Firebase Firestore 저장
+    chatCollection.add(chatData).catch((err) => {
+      console.error('Firebase 저장 실패:', err);
+    });
   });
 
-  // 연결 해제 시 닉네임 정리
   socket.on('disconnect', () => {
     const nickname = socketIdToNickname.get(socket.id);
     if (nickname) {
